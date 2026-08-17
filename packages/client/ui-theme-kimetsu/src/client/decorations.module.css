@@ -1,0 +1,462 @@
+/**
+ * Kimetsu theme decoration layer — ENHANCED EDITION
+ * 增强版：为所有主要组件添加鬼灭之刃风格
+ */
+
+/* ── pattern & artwork custom properties ────────────────────────────────── */
+
+:global(body[data-kimetsu]) {
+  --kimetsu-ichimatsu: conic-gradient(
+    rgba(26, 77, 58, 0.55) 25%, transparent 0 50%,
+    rgba(26, 77, 58, 0.55) 0 75%, transparent 0);
+  --kimetsu-asanoha:
+    repeating-linear-gradient(60deg, rgba(224, 122, 149, 0.07) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(-60deg, rgba(224, 122, 149, 0.07) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(0deg, rgba(224, 122, 149, 0.05) 0 1px, transparent 1px 12px);
+  --kimetsu-seigaiha:
+    radial-gradient(circle at 50% 120%, transparent 62%, rgba(116, 169, 138, 0.10) 63% 68%, transparent 69%),
+    radial-gradient(circle at 0% 20%, transparent 62%, rgba(116, 169, 138, 0.10) 63% 68%, transparent 69%),
+    radial-gradient(circle at 100% 20%, transparent 62%, rgba(116, 169, 138, 0.10) 63% 68%, transparent 69%);
+  --kimetsu-wisteria: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 170'%3E%3Cpath d='M60 4v16' stroke='%237a8f5a' stroke-width='4' fill='none'/%3E%3Cg fill='%23b394d4' fill-opacity='0.20'%3E%3Ccircle cx='60' cy='28' r='11'/%3E%3Ccircle cx='45' cy='36' r='10'/%3E%3Ccircle cx='75' cy='36' r='10'/%3E%3Ccircle cx='53' cy='46' r='10'/%3E%3Ccircle cx='68' cy='48' r='9'/%3E%3Ccircle cx='42' cy='52' r='8'/%3E%3Ccircle cx='78' cy='54' r='7'/%3E%3Ccircle cx='60' cy='60' r='9'/%3E%3Ccircle cx='49' cy='68' r='8'/%3E%3Ccircle cx='70' cy='66' r='7'/%3E%3Ccircle cx='58' cy='76' r='7'/%3E%3Ccircle cx='66' cy='84' r='6'/%3E%3Ccircle cx='54' cy='88' r='5'/%3E%3Ccircle cx='61' cy='95' r='5'/%3E%3Ccircle cx='59' cy='103' r='4'/%3E%3Ccircle cx='60' cy='110' r='3'/%3E%3C/g%3E%3Cg fill='%23d3bdf0' fill-opacity='0.26'%3E%3Ccircle cx='57' cy='26' r='4'/%3E%3Ccircle cx='43' cy='34' r='3'/%3E%3Ccircle cx='51' cy='44' r='3'/%3E%3Ccircle cx='58' cy='58' r='3'/%3E%3Ccircle cx='47' cy='66' r='2.5'/%3E%3Ccircle cx='56' cy='74' r='2'/%3E%3Ccircle cx='64' cy='82' r='2'/%3E%3C/g%3E%3C/svg%3E");
+  --kimetsu-hanafuda: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 84'%3E%3Crect x='2' y='2' width='56' height='80' rx='8' fill='%23f4ecd8' fill-opacity='0.92' stroke='%23151515' stroke-width='2'/%3E%3Ccircle cx='30' cy='34' r='12' fill='%23b03030'/%3E%3Cg stroke='%23b03030' stroke-width='3'%3E%3Cpath d='M30 52v16'/%3E%3Cpath d='M16 48l-8 12'/%3E%3Cpath d='M44 48l8 12'/%3E%3Cpath d='M8 34h6'/%3E%3Cpath d='M46 34h6'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* ── sidebar column: frosted glass over the same scene ───────────────────
+   The frame-level scene (media.ts) covers the whole window including the
+   sidebar strip. The sidebar gets a LIGHT veil + backdrop blur: the artwork's
+   colors wash through, so the left area stays visibly part of the scene
+   instead of reading as a bolted-on flat panel (左边区域没填满、格格不入),
+   while the blur dissolves detail so list rows stay legible.
+
+   TRAP: the veil + frost must NOT sit on the column element itself.
+   ui-settings' modal overlay (position:fixed, z-index:1000) renders as a
+   DESCENDANT of this column — a z-index on the column would cap the overlay
+   inside the column's stacking context (the conversation column then paints
+   above it: 设置页与对话区重叠、点不动), and a backdrop-filter/filter on
+   the column would re-parent the overlay's fixed geometry to this 280px
+   strip. The column therefore stays z-auto and filter-free; the veil + frost
+   live on a ::before (a pseudo box traps nothing), and the workspace root is
+   merely position:relative (z-index:auto, no stacking context) so the column
+   content paints above the frosted layer. A faint asanoha weave tiles over
+   the veil, and the right seam takes a bamboo-tinted border instead of the
+   neutral grey one. */
+
+/* NOTE: unprefixed `backdrop-filter` ONLY in this file — the CSS minifier
+   dedupes a same-value declaration pair to its LAST entry, so writing both
+   `backdrop-filter` and `-webkit-backdrop-filter` ships only the webkit one,
+   which Chromium does not apply (the frost silently dies). */
+:global(body[data-kimetsu] div:has(> [data-slot='sidebar'])) {
+  background: transparent;
+  border-right: 1px solid rgba(116, 169, 138, 0.16);
+  position: relative;
+}
+
+:global(body[data-kimetsu='light'] div:has(> [data-slot='sidebar'])) {
+  border-right: 1px solid rgba(26, 58, 46, 0.12);
+}
+
+:global(body[data-kimetsu] div:has(> [data-slot='sidebar']))::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+:global(body[data-kimetsu='dark'] div:has(> [data-slot='sidebar']))::before {
+  background: linear-gradient(180deg, rgba(10, 13, 11, 0.44) 0%, rgba(10, 13, 11, 0.36) 100%), var(--kimetsu-asanoha);
+  background-size: 100% 100%, 24px 24px;
+  backdrop-filter: blur(18px) saturate(1.15);
+}
+
+:global(body[data-kimetsu='light'] div:has(> [data-slot='sidebar']))::before {
+  background: linear-gradient(180deg, rgba(247, 243, 234, 0.56) 0%, rgba(247, 243, 234, 0.48) 100%), var(--kimetsu-asanoha);
+  background-size: 100% 100%, 24px 24px;
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+:global(body[data-kimetsu] div:has(> [data-slot='sidebar'])::after) {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 37px;
+  background-image: var(--kimetsu-hanafuda);
+  background-size: contain;
+  background-repeat: no-repeat;
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── let the scene show through the app shell ─────────────────────────────
+   The frame-level scene (media.ts) covers the whole window, but the app
+   shell paints three opaque surfaces above it: the layout frame, the
+   sidebar root and the conversation root. Under Kimetsu those fills drop to
+   transparent so the artwork shows through. Per-mode translucent veils
+   (dark sumi / light washi) keep the lists legible. Hash prefixes are
+   stable across builds, so the four-class prefixes are safe selectors. */
+
+:global(body[data-kimetsu] div[class*='SnYY4G_frame']),
+:global(body[data-kimetsu] div[class*='Uostbq_root']),
+:global(body[data-kimetsu] div[class*='vQTsmW_root']) {
+  background-color: transparent !important;
+}
+
+/* The workspace tree root stays fully transparent: the sidebar column's own
+   frosted veil (above) already carries legibility — a second veil here
+   compounds with it and flattens the sidebar back into an opaque panel. It
+   also gets position:relative WITHOUT z-index: the column content must paint
+   above the column's frosted ::before (z-index 0), while a plain offset
+   parent creates no stacking context, so the settings overlay inside still
+   escapes to the root stacking context. */
+:global(body[data-kimetsu='dark'] div[class*='Uostbq_root']),
+:global(body[data-kimetsu='light'] div[class*='Uostbq_root']) {
+  background: transparent !important;
+  position: relative;
+}
+
+:global(body[data-kimetsu='dark'] div[class*='vQTsmW_root']) {
+  background: transparent !important;
+}
+
+:global(body[data-kimetsu='light'] div[class*='vQTsmW_root']) {
+  background: transparent !important;
+}
+
+/* ── conversation column: fullscreen scene handled by media.ts ────────────
+   The ambient <img>/<video> fills the whole window (mounted by media.ts as
+   the frame's first element). Column only contributes position + overflow
+   here. A ::before scrim keeps chat legible; the calligraphy ::after anchors
+   to the right edge. */
+
+:global(body[data-kimetsu] div:has(> [data-slot='conversation'])) {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Column scrim at z-index -1: paints BELOW all column content, so it calms
+   the scene without ever greying the text on top (an earlier ::before at
+   z-index 1 sat ABOVE the text and washed it out — 字体看不清). Strength is
+   moderate: the artwork stays visible, stray markdown text keeps a quiet
+   backing, and frosted bubbles + the text shadow below do the rest. */
+:global(body[data-kimetsu='dark'] div:has(> [data-slot='conversation']))::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(9, 12, 10, 0.62) 0%, rgba(9, 12, 10, 0.54) 45%, rgba(9, 12, 10, 0.46) 100%);
+  pointer-events: none;
+}
+
+:global(body[data-kimetsu='light'] div:has(> [data-slot='conversation']))::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(247, 243, 234, 0.64) 0%, rgba(247, 243, 234, 0.56) 45%, rgba(247, 243, 234, 0.48) 100%);
+  pointer-events: none;
+}
+
+/* soften any direct text over the scene */
+:global(body[data-kimetsu='dark'] div:has(> [data-slot='conversation'])) [data-slot='conversation'] {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+:global(body[data-kimetsu='light'] div:has(> [data-slot='conversation'])) [data-slot='conversation'] {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.55);
+}
+
+/* calligraphy 「全集中・常中」 along the right edge. z-index above content. */
+:global(body[data-kimetsu] div:has(> [data-slot='conversation'])::after) {
+  content: '全集中・常中';
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Songti SC', serif;
+  font-size: 28px;
+  letter-spacing: 0.66em;
+  color: rgba(232, 164, 184, 0.40);
+  text-shadow: 0 0 18px rgba(224, 122, 149, 0.30), 0 1px 3px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 3;
+}
+
+:global(body[data-kimetsu='light'] div:has(> [data-slot='conversation'])::after) {
+  /* deep madder-ink so the strokes read over the pale washi scene */
+  color: rgba(123, 30, 56, 0.60);
+  text-shadow: 0 0 14px rgba(178, 62, 92, 0.30), 0 0 2px rgba(255, 255, 255, 0.6);
+}
+
+/* Only the CONVERSATION column gets a stacking context: its content stacks
+   over the z-0 ambient layer the frame holds as its first child, and the
+   scrim ::before rides z-index -1 inside it. The sidebar column deliberately
+   stays z-index:auto (position:relative only, set further up): a positive
+   z-index there would trap ui-settings' fixed overlay beneath this column —
+   and the sidebar still paints above the ambient layer by tree order, since
+   positioned z-auto and the layer's z-index:0 share the same paint step. */
+:global(body[data-kimetsu] div:has(> [data-slot='conversation'])) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── composer bar: ichimatsu tsuba rim ──────────────────────────────── */
+
+:global(body[data-kimetsu] div:has(> [data-slot='conversation.composer.bar'])) {
+  position: relative;
+}
+
+:global(body[data-kimetsu] div:has(> [data-slot='conversation.composer.bar'])::before) {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 6px;
+  background-image: var(--kimetsu-ichimatsu);
+  background-size: 12px 12px;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── message bubbles: frosted backing so text reads over the scene ──────── */
+
+:global(body[data-kimetsu='dark'] [data-slot='conversation'] [class*='bubble' i]) {
+  background-color: rgba(12, 17, 14, 0.86);
+  backdrop-filter: blur(12px);
+  background-image: var(--kimetsu-asanoha);
+  background-size: 24px 24px;
+  border: 1px solid rgba(116, 169, 138, 0.18);
+}
+
+:global(body[data-kimetsu='light'] [data-slot='conversation'] [class*='bubble' i]) {
+  background-color: rgba(250, 246, 238, 0.90);
+  backdrop-filter: blur(12px);
+  background-image: var(--kimetsu-asanoha);
+  background-size: 24px 24px;
+  border: 1px solid rgba(150, 52, 82, 0.14);
+}
+
+/* ── primary buttons: Hinokami ember ───────────────────────────────── */
+
+:global(body[data-kimetsu] [data-slot] button[class*='primary' i]) {
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.10) 0%, transparent 40%, transparent 60%, rgba(0, 0, 0, 0.12) 100%);
+  box-shadow: inset 0 -2px 0 0 rgba(176, 48, 48, 0.60), 0 4px 18px -6px rgba(224, 122, 149, 0.45);
+}
+
+/* ── markdown headings: Mincho serif ───────────────────────────────── */
+
+:global(body[data-kimetsu] [data-slot='conversation'] h1),
+:global(body[data-kimetsu] [data-slot='conversation'] h2),
+:global(body[data-kimetsu] [data-slot='conversation'] h3) {
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Songti SC', serif;
+  letter-spacing: 0.01em;
+}
+
+/* ── light-palette pattern tuning ──────────────────────────────────── */
+
+:global(body[data-kimetsu='light']) {
+  --kimetsu-ichimatsu: conic-gradient(rgba(45, 74, 59, 0.28) 25%, transparent 0 50%, rgba(45, 74, 59, 0.28) 0 75%, transparent 0);
+  --kimetsu-asanoha:
+    repeating-linear-gradient(60deg, rgba(178, 62, 92, 0.06) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(-60deg, rgba(178, 62, 92, 0.06) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(0deg, rgba(178, 62, 92, 0.045) 0 1px, transparent 1px 12px);
+  --kimetsu-seigaiha:
+    radial-gradient(circle at 50% 120%, transparent 62%, rgba(45, 74, 59, 0.10) 63% 68%, transparent 69%),
+    radial-gradient(circle at 0% 20%, transparent 62%, rgba(45, 74, 59, 0.10) 63% 68%, transparent 69%),
+    radial-gradient(circle at 100% 20%, transparent 62%, rgba(45, 74, 59, 0.10) 63% 68%, transparent 69%);
+}
+
+/* ── text selection: Nezuko pink ───────────────────────────────────── */
+
+:global(body[data-kimetsu]) ::selection {
+  background-color: rgba(224, 122, 149, 0.32);
+  color: rgb(245, 247, 242);
+}
+
+:global(body[data-kimetsu='light']) ::selection {
+  background-color: rgba(178, 62, 92, 0.22);
+  color: rgb(24, 28, 25);
+}
+
+/* ── focus rings: water-breathing ripple ───────────────────────────── */
+
+:global(body[data-kimetsu]) :is(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid rgba(116, 169, 138, 0.75);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 5px rgba(116, 169, 138, 0.16);
+}
+
+/* ── code blocks: nichirin-blade rail ──────────────────────────────── */
+
+:global(body[data-kimetsu] [data-slot='conversation'] pre),
+:global(body[data-kimetsu] [data-slot='conversation'] [class*='code-block' i]),
+:global(body[data-kimetsu] [data-slot='conversation'] [class*='codeblock' i]) {
+  box-shadow: inset 2px 0 0 0 rgba(116, 169, 138, 0.40);
+}
+
+:global(body[data-kimetsu='light'] [data-slot='conversation'] pre),
+:global(body[data-kimetsu='light'] [data-slot='conversation'] [class*='code-block' i]),
+:global(body[data-kimetsu='light'] [data-slot='conversation'] [class*='codeblock' i]) {
+  box-shadow: inset 2px 0 0 0 rgba(45, 74, 59, 0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   增强组件样式 - 让所有主要UI组件都具有鬼灭之刃特色
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 输入框：日轮刀护手纹样边框 ──────────────────────────────────── */
+
+:global(body[data-kimetsu] [data-slot] input[type='text']),
+:global(body[data-kimetsu] [data-slot] textarea) {
+  border-width: 0 0 2px 0 !important;
+  border-style: solid !important;
+  border-image: repeating-linear-gradient(90deg, rgba(116, 169, 138, 0.35) 0 8px, transparent 8px 16px) 1 !important;
+  transition: border-image 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+:global(body[data-kimetsu] [data-slot] input[type='text']:focus),
+:global(body[data-kimetsu] [data-slot] textarea:focus) {
+  border-image: repeating-linear-gradient(90deg, rgba(224, 122, 149, 0.65) 0 8px, transparent 8px 16px) 1 !important;
+  box-shadow: 0 3px 12px rgba(224, 122, 149, 0.25) !important;
+}
+
+/* ── 滚动条：呼吸法纹路 ───────────────────────────────────────────── */
+
+:global(body[data-kimetsu] ::-webkit-scrollbar) {
+  width: 10px;
+  height: 10px;
+}
+
+:global(body[data-kimetsu] ::-webkit-scrollbar-track) {
+  background-image: var(--kimetsu-seigaiha);
+  background-size: 22px 11px;
+  border-radius: 2px;
+}
+
+:global(body[data-kimetsu] ::-webkit-scrollbar-thumb) {
+  background: linear-gradient(180deg, rgba(116, 169, 138, 0.45) 0%, rgba(116, 169, 138, 0.30) 50%, rgba(116, 169, 138, 0.45) 100%);
+  border-radius: 5px;
+  border: 1px solid rgba(116, 169, 138, 0.20);
+}
+
+:global(body[data-kimetsu] ::-webkit-scrollbar-thumb:hover) {
+  background: linear-gradient(180deg, rgba(224, 122, 149, 0.55) 0%, rgba(224, 122, 149, 0.40) 50%, rgba(224, 122, 149, 0.55) 100%);
+}
+
+/* ── 加载动画：呼吸法韵律脉动 ────────────────────────────────────── */
+
+@keyframes kimetsu-breathing {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+:global(body[data-kimetsu] [class*='loading' i]),
+:global(body[data-kimetsu] [class*='spinner' i]),
+:global(body[data-kimetsu] [aria-busy='true']) {
+  animation: kimetsu-breathing 2s ease-in-out infinite;
+}
+
+/* ── 徽章和标签：炭治郎耳饰造型 ────────────────────────────────────── */
+
+:global(body[data-kimetsu] [data-slot] [class*='badge' i]),
+:global(body[data-kimetsu] [data-slot] [class*='tag' i]:not([class*='input' i])) {
+  background-image: radial-gradient(circle at center, rgba(224, 122, 149, 0.20) 0%, transparent 70%) !important;
+  border: 1px solid rgba(224, 122, 149, 0.35) !important;
+  box-shadow: 0 0 8px rgba(224, 122, 149, 0.15), inset 0 0 6px rgba(224, 122, 149, 0.10) !important;
+}
+
+/* ── 卡片：传统日式纸张质感 ────────────────────────────────────────── */
+
+:global(body[data-kimetsu] [data-slot] [class*='card' i]) {
+  background-image: var(--kimetsu-asanoha), linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, transparent 50%, rgba(0, 0, 0, 0.05) 100%) !important;
+  background-size: 24px 24px, 100% !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(116, 169, 138, 0.08) !important;
+  border: 1px solid rgba(116, 169, 138, 0.15) !important;
+}
+
+/* ── 消息气泡：角色属性区分 ────────────────────────────────────────── */
+
+:global(body[data-kimetsu] [data-slot='conversation'] [data-role='user']) {
+  border-left: 3px solid rgba(224, 122, 149, 0.50) !important;
+  background-image: linear-gradient(90deg, rgba(224, 122, 149, 0.08) 0%, transparent 20%), var(--kimetsu-asanoha) !important;
+}
+
+:global(body[data-kimetsu] [data-slot='conversation'] [data-role='assistant']) {
+  border-left: 3px solid rgba(116, 169, 138, 0.50) !important;
+  background-image: linear-gradient(90deg, rgba(116, 169, 138, 0.08) 0%, transparent 20%), var(--kimetsu-seigaiha) !important;
+  background-size: 100%, 44px 22px !important;
+}
+
+/* ── 分隔线：刀刃切痕效果 ──────────────────────────────────────────── */
+
+:global(body[data-kimetsu] hr),
+:global(body[data-kimetsu] [data-slot] [class*='divider' i]) {
+  height: 2px !important;
+  border: none !important;
+  background: linear-gradient(90deg, transparent 0%, rgba(116, 169, 138, 0.15) 3%, rgba(116, 169, 138, 0.40) 50%, rgba(116, 169, 138, 0.15) 97%, transparent 100%) !important;
+  box-shadow: 0 1px 2px rgba(224, 122, 149, 0.10), 0 -1px 2px rgba(116, 169, 138, 0.05) !important;
+}
+
+/* ── 下拉菜单：浮世绘画框 ──────────────────────────────────────────── */
+
+:global(body[data-kimetsu] [role='menu']),
+:global(body[data-kimetsu] [data-slot] [class*='dropdown' i] [role='menu']),
+:global(body[data-kimetsu] [data-slot] select) {
+  background-image: var(--kimetsu-ichimatsu) !important;
+  background-size: 8px 8px !important;
+  border: 2px solid rgba(116, 169, 138, 0.25) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(224, 122, 149, 0.08) !important;
+}
+
+/* ── 进度条：呼吸法能量积蓄 ────────────────────────────────────────── */
+
+:global(body[data-kimetsu] progress),
+:global(body[data-kimetsu] [role='progressbar']) {
+  background-image: var(--kimetsu-seigaiha) !important;
+  background-size: 22px 11px !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+}
+
+:global(body[data-kimetsu] progress::-webkit-progress-value) {
+  background: linear-gradient(90deg, rgba(116, 169, 138, 0.60) 0%, rgba(224, 122, 149, 0.75) 50%, rgba(116, 169, 138, 0.60) 100%) !important;
+  box-shadow: 0 0 12px rgba(224, 122, 149, 0.40), inset 0 1px 2px rgba(255, 255, 255, 0.15) !important;
+}
+
+/* ── 表格：和纸账本风格 ────────────────────────────────────────────── */
+
+:global(body[data-kimetsu] table) {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  background-image: var(--kimetsu-asanoha) !important;
+  background-size: 24px 24px !important;
+}
+
+:global(body[data-kimetsu] table th) {
+  background: linear-gradient(180deg, rgba(116, 169, 138, 0.20) 0%, rgba(116, 169, 138, 0.10) 100%) !important;
+  border-bottom: 2px solid rgba(224, 122, 149, 0.30) !important;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', serif !important;
+  letter-spacing: 0.05em !important;
+}
+
+:global(body[data-kimetsu] table tr:hover) {
+  background: rgba(224, 122, 149, 0.08) !important;
+}
+
+:global(body[data-kimetsu] table td) {
+  border-bottom: 1px solid rgba(116, 169, 138, 0.12) !important;
+}
+
+/* ── 通知和提示：鬼杀队紧急信函 ────────────────────────────────────── */
+
+:global(body[data-kimetsu] [role='alert']),
+:global(body[data-kimetsu] [data-slot] [class*='notification' i]),
+:global(body[data-kimetsu] [data-slot] [class*='toast' i]) {
+  background-image: radial-gradient(circle at right, rgba(224, 122, 149, 0.15), transparent 60%), linear-gradient(135deg, rgba(28, 42, 35, 0.96), rgba(34, 48, 41, 0.96)) !important;
+  background-size: 100px 100px, 100% !important;
+  border-left: 4px solid rgba(224, 122, 149, 0.70) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.40), inset 0 0 20px rgba(224, 122, 149, 0.10) !important;
+  backdrop-filter: blur(12px) !important;
+}

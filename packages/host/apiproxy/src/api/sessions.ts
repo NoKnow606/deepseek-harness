@@ -83,10 +83,15 @@ export interface SessionProjectionsBlock {
   values: Partial<SessionProjectionMap>
 }
 
-/** Browser-submitted prompt content; the host promotes image bytes to durable references. */
+/**
+ * Browser-submitted prompt content; the host promotes image bytes to durable
+ * references and generic file bytes to a durable store path the agent can
+ * open with its own tools (surfaced to the model as a text reference block).
+ */
 export type PromptContentPart =
   | { type: 'text'; text: string }
   | { type: 'image'; mediaType: ImageMediaType; data: string; name?: string }
+  | { type: 'file'; mediaType: string; data: string; name: string }
 
 /** Complete model selection for one session. */
 export interface ModelSelection {

@@ -2,8 +2,11 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import type {
+  FileAttachmentLimits,
+  FileAttachmentRef,
   ImageAttachmentLimits,
   ImageAttachmentRef,
+  SaveFileAttachment,
   SaveImageAttachment,
   StoredImageAttachment,
 } from './types.ts'
@@ -12,9 +15,12 @@ export { AttachmentId } from './brand.ts'
 export { AttachmentError } from './error.ts'
 export type {
   AttachmentId as AttachmentIdType,
+  FileAttachmentLimits,
+  FileAttachmentRef,
   ImageAttachmentLimits,
   ImageAttachmentRef,
   ImageMediaType,
+  SaveFileAttachment,
   SaveImageAttachment,
   StoredImageAttachment,
 } from './types.ts'
@@ -57,6 +63,18 @@ export abstract class AttachmentStore extends Service {
    * @throws the signal reason when aborted, or a storage error when verification fails.
    */
   abstract readImage(ref: ImageAttachmentRef, signal?: AbortSignal): Promise<StoredImageAttachment>
+
+  /** Deployment-resolved generic file policy used by authoritative and fast-path validation. */
+  abstract readonly fileLimits: FileAttachmentLimits
+
+  /**
+   * Validate and durably commit one arbitrary file before its owning session
+   * event is appended. No content sniffing: any bytes are accepted — the
+   * reference exists so the agent can open the file with its own tools.
+   * @param input - encoded bytes, declared media type, and display name.
+   * @returns a durable reference carrying the absolute stored path.
+   */
+  abstract saveFile(input: SaveFileAttachment): Promise<FileAttachmentRef>
 }
 
 export default AttachmentStore

@@ -52,6 +52,11 @@ export function attachmentErrorText(
     case 'IMAGES_TOO_LARGE':
       if (limits !== undefined) return t('image.totalTooLarge', { size: imageSizeText(limits.maxMessageImageBytes) })
       break
+    // Generic-file admission failures (store defaults mirrored client-side;
+    // the composer's own pre-check uses the same numbers).
+    case 'TOO_MANY_FILES': return t('file.tooMany', { count: 8 })
+    case 'FILE_TOO_LARGE': return t('file.fileTooLarge', { size: imageSizeText(32 * 1024 * 1024) })
+    case 'FILES_TOO_LARGE': return t('file.totalTooLarge', { size: imageSizeText(64 * 1024 * 1024) })
     default: break
   }
   return t('image.sendFailed', { reason })

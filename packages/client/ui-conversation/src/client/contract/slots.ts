@@ -22,11 +22,13 @@ import type { ComposerSubmitGesture, InputSubmitMode } from './composer-submissi
 import type { ChatNode, ChatNodeKind } from './chat-nodes.ts'
 import type { CallId, SelectionTarget, ViewTab } from './views.ts'
 
-/** Browser-owned image that has not crossed the durable host boundary. */
+/** Browser-owned attachment that has not crossed the durable host boundary. */
 export interface ComposerAttachment {
-  kind: 'image'
+  /** Raster images render as thumbnails and ship as model-visible image parts; everything else ships as a stored-file reference. */
+  kind: 'image' | 'file'
   id: DraftAttachmentId
   file: File
+  /** Object URL for image thumbnails; empty string for generic files (the rail renders a chip instead). */
   previewUrl: string
 }
 

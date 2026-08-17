@@ -46,3 +46,37 @@ export interface StoredImageAttachment {
   ref: ImageAttachmentRef
   data: Uint8Array
 }
+
+/** Durable, serializable metadata for one immutable generic file object. */
+export interface FileAttachmentRef {
+  /** Opaque storage identifier; never a bearer URL. */
+  attachmentId: AttachmentId
+  /** Browser-declared media type, or `application/octet-stream` when unknown. */
+  mediaType: string
+  /** Exact encoded byte length. */
+  bytes: number
+  /** Display name stripped of local path information. */
+  name: string
+  /**
+   * Absolute durable path of the stored bytes. Unlike image refs — which stay
+   * behind `readImage` because the MODEL consumes them — a file ref exists so
+   * the AGENT can open the bytes with its own tools, so the path is the point.
+   */
+  path: string
+}
+
+/** Deployment-resolved limits for generic file intake. */
+export interface FileAttachmentLimits {
+  maxFileBytes: number
+  maxFilesPerMessage: number
+  maxMessageFileBytes: number
+}
+
+/** Request to validate and durably commit one generic file. */
+export interface SaveFileAttachment {
+  data: Uint8Array
+  /** Browser-declared media type, or `application/octet-stream` when unknown. */
+  mediaType: string
+  /** Browser file name; never interpreted as a path. */
+  name: string
+}

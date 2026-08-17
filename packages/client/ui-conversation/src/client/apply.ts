@@ -18,7 +18,7 @@ import type {
 } from './contract/slots.ts'
 import type { InputNotice } from './input/contract.ts'
 import { createChatStore } from './stores.ts'
-import { ConversationController, UnsupportedImageMediaTypeError } from './service.ts'
+import { ConversationController } from './service.ts'
 import type { IConversation } from './service.ts'
 import { ComposerBlockRegistry } from './input/blocks.ts'
 import type { ComposerBlock } from './input/blocks.ts'
@@ -313,11 +313,8 @@ export function apply(ctx: Context): void {
             }
             return null
           } catch (error: unknown) {
-            if (error instanceof UnsupportedImageMediaTypeError) {
-              // Positive copy: the supported list is fixed in imageMediaType,
-              // and naming it beats echoing the rejected MIME type back.
-              return t('image.unsupportedType')
-            }
+            // createDraftImages accepts every browser file; a throw here is a
+            // runtime fault (URL creation, store), so surface it verbatim.
             return error instanceof Error ? error.message : String(error)
           }
         },

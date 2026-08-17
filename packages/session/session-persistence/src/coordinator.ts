@@ -226,6 +226,17 @@ interface SessionState {
    */
   materialized: boolean
   /**
+   * The durable revision this in-memory cursor was bound against. Compared
+   * against the backend's CURRENT revision before every append: any other
+   * writer (a second harness process reattaching to the same identity, a
+   * stale live session whose event loop outlived its interrupt, an external
+   * sync) changes the stored revision and MUST strand this writer instead of
+   * letting stale-seq bytes reach the log. `undefined` until the first
+   * materialization completes or a cursor is adopted from a ready source —
+   * both timestamps at which the revision is sampled.
+   */
+  revision?: SessionPersistenceRevision
+  /**
    * The live Session this state was bound to via `onCreated`, if any. State
    * created through the public `create()`/`load()` API has no owner; state bound
    * to a live session lets `onCreated` reject a second, unrelated session on the

@@ -60,10 +60,13 @@ export interface IConversation {
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
 function browserDraftAttachment(file: File): ComposerAttachment {
+  const image = isRasterImage(file.type)
   return {
-    kind: 'image',
+    kind: image ? 'image' : 'file',
     id: crypto.randomUUID() as DraftAttachmentId,
-    previewUrl: URL.createObjectURL(file),
+    // Only images need a live object URL (the rail thumbnail); file chips
+    // render from the descriptor, so no URL leaks for non-image drafts.
+    previewUrl: image ? URL.createObjectURL(file) : '',
     file,
   }
 }
@@ -149,7 +152,7 @@ export class ConversationController extends Service implements IConversation {
     if (attachments.length !== imageIds.length) {
       throw new Error('conversation.sendSession: one or more draft images are no longer available')
     }
-    const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
+    const uploaded = await this.serializeAttachments(attachments)
     const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
     const result = await session.prompt(content, mode)
     if (!result.ok) throw new Error(`conversation.send failed: ${result.error.code}: ${result.error.message}`)
@@ -157,16 +160,17 @@ export class ConversationController extends Service implements IConversation {
   }
 
   /**
-   * Create runtime-only draft images and their object URLs.
-   * @param files - browser files to register after MIME validation.
+   * Create runtime-only draft attachments (images plus arbitrary files).
+   * Every browser file is accepted here; the composer pre-check and the
+   * host's authoritative admission own the limit rejections.
+   * @param files - browser files to register.
    * @returns ordered draft descriptors.
    */
   createDraftImages(files: readonly File[]): readonly ComposerAttachment[] {
-    for (const file of files) imageMediaType(file.type)
     return files.map((file) => {
       const attachment = browserDraftAttachment(file)
       this.draftAttachments.set(attachment.id, attachment)
-      this.createdImageUrls.add(attachment.previewUrl)
+      if (attachment.previewUrl !== '') this.createdImageUrls.add(attachment.previewUrl)
       return attachment
     })
   }
@@ -312,27 +316,45 @@ export class ConversationController extends Service implements IConversation {
     return sessions
   }
 
-  /** Convert browser files to canonical base64 prompt parts. */
-  private serializeImages(images: readonly File[]): Promise<Parameters<SessionFace['prompt']>[0]> {
-    return Promise.all(images.map(async file => ({
-      type: 'image' as const,
-      mediaType: imageMediaType(file.type),
-      data: bytesToBase64(new Uint8Array(await file.arrayBuffer())),
-      ...(file.name === '' ? {} : { name: file.name }),
-    })))
+  /** Convert browser draft attachments to canonical base64 prompt parts. */
+  private serializeAttachments(attachments: readonly ComposerAttachment[]): Promise<Parameters<SessionFace['prompt']>[0]> {
+    return Promise.all(attachments.map(async (attachment) => {
+      const file = attachment.file
+      const data = bytesToBase64(new Uint8Array(await file.arrayBuffer()))
+      if (attachment.kind === 'image') {
+        return {
+          type: 'image' as const,
+          mediaType: imageMediaType(file.type),
+          data,
+          ...(file.name === '' ? {} : { name: file.name }),
+        }
+      }
+      return {
+        type: 'file' as const,
+        mediaType: file.type === '' ? 'application/octet-stream' : file.type,
+        data,
+        name: file.name === '' ? 'attachment' : file.name,
+      }
+    }))
   }
 }
 
-function imageMediaType(value: string): ImageMediaType {
+/** Narrow a browser-declared MIME to the model-visible raster set. */
+function isRasterImage(value: string): value is ImageMediaType {
   switch (value) {
     case 'image/png':
     case 'image/jpeg':
     case 'image/webp':
     case 'image/gif':
-      return value
+      return true
     default:
-      throw new UnsupportedImageMediaTypeError(value)
+      return false
   }
+}
+
+function imageMediaType(value: string): ImageMediaType {
+  if (isRasterImage(value)) return value
+  throw new UnsupportedImageMediaTypeError(value)
 }
 
 function bytesToBase64(data: Uint8Array): string {

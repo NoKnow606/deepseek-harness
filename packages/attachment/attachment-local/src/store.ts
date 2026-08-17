@@ -9,8 +9,11 @@ import {
   AttachmentId,
 } from '@deepseek-ai/dsh-attachment'
 import type {
+  FileAttachmentLimits,
+  FileAttachmentRef,
   ImageAttachmentLimits,
   ImageAttachmentRef,
+  SaveFileAttachment,
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
@@ -190,6 +193,76 @@ export async function saveImageFile(root: string, input: SaveImageAttachment, li
     attachmentId: AttachmentId(`sha256:${sha256}`),
     ...metadata,
     ...(name !== undefined ? { name } : {}),
+  }
+}
+
+/**
+ * Map a browser display name to a safe single path component, keeping the
+ * extension so agent tools (`unzip`, `tar`, `file`, …) behave naturally.
+ * Unlike `displayName` this must be filesystem-safe, not just log-safe.
+ */
+function fileName(value: string): string {
+  const display = displayName(value) ?? 'attachment'
+  const clean = display
+    .replace(/[^\p{L}\p{N}._-]+/gu, '_')
+    .replace(/^\.+/, '')
+    .slice(0, 120)
+  return clean === '' ? 'attachment' : clean
+}
+
+/**
+ * Save arbitrary bytes durably below the root's `files/` lane and return a
+ * path-bearing reference. No content sniffing or dedupe: the file's identity
+ * is its random publication name, and the agent consumes the bytes through
+ * its own tools rather than through an attachment RPC.
+ * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param input - encoded bytes and declared metadata.
+ * @param limits - resolved storage policy.
+ * @returns durable reference with the absolute stored path.
+ */
+export async function saveFileData(root: string, input: SaveFileAttachment, limits: FileAttachmentLimits): Promise<FileAttachmentRef> {
+  if (input.data.byteLength === 0) throw new AttachmentError('File is empty.', 'INVALID_FILE')
+  if (input.data.byteLength > limits.maxFileBytes) throw new AttachmentError('File exceeds the configured byte limit.', 'FILE_TOO_LARGE')
+  const name = fileName(input.name)
+  const id = randomUUID()
+  const boundary = await ensureDurableHome(dirname(dirname(resolve(root))))
+  const lane = join(root, 'files')
+  const staging = join(root, 'tmp')
+  await ensureDurableDirectory(lane, boundary)
+  await ensureDurableDirectory(staging, boundary)
+  const temporary = join(staging, randomUUID())
+  const target = join(lane, `${id}-${name}`)
+  let handle
+  try {
+    handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
+    await handle.writeFile(input.data)
+    await handle.sync()
+    await handle.close()
+    handle = undefined
+    await link(temporary, target)
+    await syncDirectory(lane)
+    await unlink(temporary)
+  } catch (error) {
+    /* v8 ignore next -- A descriptor can remain open only when the underlying write/sync/close operation fails. */
+    if (handle !== undefined) await handle.close().catch(
+      /* v8 ignore next -- Close failure is superseded by the storage operation that entered cleanup. */
+      () => {},
+    )
+    await unlink(temporary).catch(
+      /* v8 ignore next -- The callback requires a second independent staging-unlink failure. */
+      (cleanupError: unknown) => {
+        /* v8 ignore next -- Cleanup is best-effort only for a staging file already removed by a failed operation. */
+        if (!(cleanupError instanceof Error && 'code' in cleanupError && cleanupError.code === 'ENOENT')) throw cleanupError
+      },
+    )
+    throw new AttachmentError('Unable to persist file attachment.', 'ATTACHMENT_WRITE_FAILED', { cause: error })
+  }
+  return {
+    attachmentId: AttachmentId(`file:${id}`),
+    mediaType: input.mediaType === '' ? 'application/octet-stream' : input.mediaType,
+    bytes: input.data.byteLength,
+    name,
+    path: target,
   }
 }
 

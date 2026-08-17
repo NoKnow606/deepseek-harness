@@ -229,7 +229,7 @@ describe('image draft rail', () => {
     const dataTransfer = { types: ['Files'], files: [image], dropEffect: 'none' }
     // The drag never touches the composer card: the listeners are page-wide.
     expect(fireEvent.dragEnter(document.body, { dataTransfer })).toBe(false)
-    expect(view.getByRole('status').textContent).toContain('图片拖动到此处即可添加')
+    expect(view.getByRole('status').textContent).toContain('文件拖动到此处即可添加')
     expect(fireEvent.dragOver(document.body, { dataTransfer })).toBe(false)
     expect(dataTransfer.dropEffect).toBe('copy')
     expect(fireEvent.drop(document.body, { dataTransfer })).toBe(false)
@@ -297,10 +297,15 @@ describe('image draft rail', () => {
     expect(within.view.queryByRole('alert')).toBeNull()
   })
 
-  it('announces the format problem before any limit when the batch holds a non-image', () => {
-    const addImages = vi.fn(() => '仅支持 PNG、JPG、WebP、GIF 格式的图片')
-    const { view } = bench({
-      addImages,
+  it('accepts non-image files at intake and pre-checks the file limits', () => {
+    const pdf = new File([new ArrayBuffer(64)], 'a.pdf', { type: 'application/pdf' })
+    const zip = new File([new ArrayBuffer(64)], 'b.zip', { type: 'application/zip' })
+    const drop = (files: File[]) => {
+      fireEvent.drop(document.body, { dataTransfer: { types: ['Files'], files, dropEffect: 'none' } })
+    }
+    // Every file type is welcome now: the batch forwards to the composer.
+    const accepted = bench({
+      addImages: vi.fn(() => null),
       imageLimits: {
         maxImageBytes: 8,
         maxImagesPerMessage: 1,
@@ -309,14 +314,22 @@ describe('image draft rail', () => {
         mediaTypes: ['image/png'] as const,
       },
     })
-    // Oversized AND over-count AND wrong type: the format rejection wins.
-    const files = [
-      new File([new ArrayBuffer(64)], 'a.pdf', { type: 'application/pdf' }),
-      new File([new ArrayBuffer(64)], 'b.pdf', { type: 'application/pdf' }),
-    ]
-    fireEvent.drop(document.body, { dataTransfer: { types: ['Files'], files, dropEffect: 'none' } })
-    expect(addImages).toHaveBeenCalledWith(files)
-    expect(view.getByRole('alert').textContent).toContain('仅支持 PNG、JPG、WebP、GIF 格式的图片')
+    drop([pdf, zip])
+    expect(accepted.props.addImages).toHaveBeenCalledWith([pdf, zip])
+    expect(accepted.view.queryByRole('alert')).toBeNull()
+    cleanup()
+    // File count still refuses as a whole batch.
+    const overCount = bench({ addImages: vi.fn(() => null) })
+    drop(Array.from({ length: 9 }, (_, i) => new File([new ArrayBuffer(8)], `f${i}.txt`, { type: 'text/plain' })))
+    expect(overCount.view.getByRole('alert').textContent).toContain('一条消息最多添加 8 个文件')
+    expect(overCount.props.addImages).not.toHaveBeenCalled()
+    cleanup()
+    // Per-file bytes.
+    const overSize = bench({ addImages: vi.fn(() => null) })
+    drop([new File([new ArrayBuffer(33 * 1024 * 1024)], 'big.bin', { type: 'application/octet-stream' })])
+    expect(overSize.view.getByRole('alert').textContent).toContain('单个文件不能超过 32MB')
+    expect(overSize.props.addImages).not.toHaveBeenCalled()
+    cleanup()
   })
 
   it('shows the projected limits in the drop overlay desc line', () => {
@@ -331,7 +344,7 @@ describe('image draft rail', () => {
       },
     })
     fireEvent.dragEnter(document.body, { dataTransfer: { types: ['Files'], files: [], dropEffect: 'none' } })
-    expect(view.getByRole('status').textContent).toContain('最多 20 张，每张 5MB')
+    expect(view.getByRole('status').textContent).toContain('图片最多 20 张（每张 5MB）；其他文件单个不超过 32MB')
   })
 
   it('announces server attachment rejections as product copy, other codes as developer text', () => {
@@ -357,7 +370,7 @@ describe('image draft rail', () => {
     const image = new File([Uint8Array.of(1)], 'dropped.png', { type: 'image/png' })
     const dataTransfer = { types: ['Files'], files: [image], dropEffect: 'copy' }
     fireEvent.dragEnter(document.body, { dataTransfer })
-    expect(view.getByRole('status').textContent).toContain('当前无法添加图片')
+    expect(view.getByRole('status').textContent).toContain('当前无法添加附件')
     fireEvent.dragOver(document.body, { dataTransfer })
     expect(dataTransfer.dropEffect).toBe('none')
     fireEvent.drop(document.body, { dataTransfer })

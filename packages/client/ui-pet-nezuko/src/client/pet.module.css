@@ -1,0 +1,315 @@
+/**
+ * Nezuko pet: layout, per-state visibility, and animation. All rules scope
+ * under the [data-nezuko-pet] mount attribute so the layer never leaks into
+ * app chrome. The mount sits above app content (z 480) and below the
+ * settings overlay (z 1000).
+ */
+
+:global([data-nezuko-pet]) {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 120px;
+  height: 195px;
+  z-index: 480;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  filter: drop-shadow(0 6px 14px rgba(9, 12, 10, 0.35));
+}
+
+:global([data-nezuko-pet] .nz-figure) {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+:global([data-nezuko-pet][data-dragging] .nz-figure) {
+  cursor: grabbing;
+}
+
+:global([data-nezuko-pet] svg) {
+  display: block;
+  overflow: visible;
+}
+
+/* ── sprite art mode (user-supplied sheet) ───────────────────────────────
+   The sheet is 4×3 frames of 384×624 shown at 120×195; pet.ts steps
+   background-position per state. Hidden until the probe upgrades the mount
+   to data-art='sprite'. */
+
+:global([data-nezuko-pet] .nz-sprite) {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  background-image: var(--nz-sheet);
+  background-repeat: no-repeat;
+  background-size: 480px 585px;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+:global([data-nezuko-pet][data-art='sprite'] .nz-sprite) {
+  visibility: visible;
+}
+
+/* In sprite art the hand-drawn figure retires, but its box stays on duty. */
+:global([data-nezuko-pet][data-art='sprite'] .nz-nez) {
+  visibility: hidden;
+}
+
+:global([data-nezuko-pet][data-art='sprite'][data-state='box'] .nz-sprite) {
+  visibility: hidden;
+}
+
+/* ── shared paint for stroked parts (markup carries geometry only) ─────── */
+
+:global([data-nezuko-pet] .nz-shadow) { fill: rgba(9, 12, 10, 0.28); }
+:global([data-nezuko-pet] .nz-brow-open),
+:global([data-nezuko-pet] .nz-brow-det) { stroke: #3a2a24; stroke-width: 1.6; stroke-linecap: round; }
+:global([data-nezuko-pet] .nz-eyes-closed),
+:global([data-nezuko-pet] .nz-eyes-happy) { stroke: #5b3427; stroke-width: 2; stroke-linecap: round; }
+:global([data-nezuko-pet] .nz-blush) { fill: #f7a8b8; opacity: 0.75; }
+:global([data-nezuko-pet] .nz-bamboo path) { stroke: #b03a48; stroke-width: 1.7; }
+:global([data-nezuko-pet] .nz-bamboo rect) { stroke: #5c8144; stroke-width: 1.2; }
+:global([data-nezuko-pet] .nz-bamboo path:last-child) { stroke: #5c8144; stroke-width: 1.2; }
+:global([data-nezuko-pet] .nz-feet ellipse) { fill: #f6f1ea; }
+:global([data-nezuko-pet] .nz-box rect[fill='none']) { stroke: #6b422a; stroke-width: 2; }
+:global([data-nezuko-pet] .nz-box path) { stroke: #6b422a; stroke-width: 3; stroke-linecap: round; }
+
+/* ── per-state visibility ──────────────────────────────────────────────── */
+
+:global([data-nezuko-pet] .nz-eyes-open),
+:global([data-nezuko-pet] .nz-eyes-closed),
+:global([data-nezuko-pet] .nz-eyes-happy),
+:global([data-nezuko-pet] .nz-brow-open),
+:global([data-nezuko-pet] .nz-brow-det),
+:global([data-nezuko-pet] .nz-flame),
+:global([data-nezuko-pet] .nz-box),
+:global([data-nezuko-pet] .nz-fx) {
+  visibility: hidden;
+}
+
+/* sleep: closed eyes, calm brows, Zzz */
+:global([data-nezuko-pet][data-state='sleep'] .nz-eyes-closed),
+:global([data-nezuko-pet][data-state='sleep'] .nz-brow-open),
+:global([data-nezuko-pet][data-state='sleep'] .nz-fx-zzz) {
+  visibility: visible;
+}
+
+/* run: open eyes, determined brows, Blood Demon Art flame */
+:global([data-nezuko-pet][data-state='run'] .nz-eyes-open),
+:global([data-nezuko-pet][data-state='run'] .nz-brow-det),
+:global([data-nezuko-pet][data-state='run'] .nz-flame) {
+  visibility: visible;
+}
+
+/* dance: happy ∪ eyes, arms up, notes */
+:global([data-nezuko-pet][data-state='dance'] .nz-eyes-happy),
+:global([data-nezuko-pet][data-state='dance'] .nz-brow-open),
+:global([data-nezuko-pet][data-state='dance'] .nz-fx-notes) {
+  visibility: visible;
+}
+
+/* alert (waiting on the user): wide eyes, raised arm, ! bubble */
+:global([data-nezuko-pet][data-state='alert'] .nz-eyes-open),
+:global([data-nezuko-pet][data-state='alert'] .nz-brow-open),
+:global([data-nezuko-pet][data-state='alert'] .nz-fx-bang) {
+  visibility: visible;
+}
+
+/* box: character hides, only the box + peeking eyes stay */
+:global([data-nezuko-pet][data-state='box'] .nz-nez) { visibility: hidden; }
+:global([data-nezuko-pet][data-state='box'] .nz-box) { visibility: visible; }
+
+:global([data-nezuko-pet] .nz-nez),
+:global([data-nezuko-pet] .nz-box) {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+/* ── state animations ──────────────────────────────────────────────────── */
+
+@keyframes nz-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.015, 1.045) translateY(-1px); }
+}
+:global([data-nezuko-pet][data-state='sleep'] .nz-nez),
+:global([data-nezuko-pet][data-state='sleep'] .nz-sprite) {
+  animation: nz-breathe 3.4s ease-in-out infinite;
+}
+
+@keyframes nz-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(3deg); }
+}
+:global([data-nezuko-pet][data-state='run'] .nz-nez),
+:global([data-nezuko-pet][data-state='run'] .nz-sprite) {
+  animation: nz-bob 0.42s ease-in-out infinite;
+}
+
+@keyframes nz-flame-flicker {
+  0%, 100% { transform: scale(1) skewX(0deg); opacity: 0.9; }
+  50% { transform: scale(1.1, 0.92) skewX(-4deg); opacity: 1; }
+}
+:global([data-nezuko-pet][data-state='run'] .nz-flame) {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  animation: nz-flame-flicker 0.5s ease-in-out infinite;
+}
+
+@keyframes nz-wiggle {
+  0%, 100% { transform: rotate(-6deg) translateY(0); }
+  50% { transform: rotate(6deg) translateY(-9px); }
+}
+:global([data-nezuko-pet][data-state='dance'] .nz-nez),
+:global([data-nezuko-pet][data-state='dance'] .nz-sprite) {
+  animation: nz-wiggle 0.72s ease-in-out infinite;
+}
+:global([data-nezuko-pet][data-state='dance'] .nz-arm-l) {
+  transform-box: fill-box;
+  transform-origin: 80% 20%;
+  transform: rotate(135deg);
+}
+:global([data-nezuko-pet][data-state='dance'] .nz-arm-r) {
+  transform-box: fill-box;
+  transform-origin: 20% 20%;
+  transform: rotate(-135deg);
+}
+
+@keyframes nz-sway {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50% { transform: rotate(2.5deg); }
+}
+:global([data-nezuko-pet][data-state='alert'] .nz-nez),
+:global([data-nezuko-pet][data-state='alert'] .nz-sprite) {
+  animation: nz-sway 1.6s ease-in-out infinite;
+}
+:global([data-nezuko-pet][data-state='alert'] .nz-arm-r) {
+  transform-box: fill-box;
+  transform-origin: 20% 20%;
+  transform: rotate(-120deg);
+}
+
+@keyframes nz-peek {
+  0%, 88%, 100% { transform: scaleY(1); }
+  92%, 96% { transform: scaleY(0.12); }
+}
+:global([data-nezuko-pet][data-state='box'] .nz-box-eyes) {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: nz-peek 4.2s ease-in-out infinite;
+}
+
+/* click reaction: squash-stretch bounce (works over any state) */
+@keyframes nz-boing {
+  0% { transform: scale(1, 1); }
+  30% { transform: scale(1.12, 0.82); }
+  55% { transform: scale(0.92, 1.12) translateY(-6px); }
+  75% { transform: scale(1.05, 0.95) translateY(0); }
+  100% { transform: scale(1, 1); }
+}
+:global([data-nezuko-pet][data-react] .nz-nez),
+:global([data-nezuko-pet][data-react] .nz-box),
+:global([data-nezuko-pet][data-react] .nz-sprite) {
+  animation: nz-boing 0.62s ease-out;
+}
+
+/* ── fx layer (Zzz / notes / ! / hearts) ───────────────────────────────── */
+
+:global([data-nezuko-pet] .nz-fx) {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+:global([data-nezuko-pet] .nz-fx span) {
+  position: absolute;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK SC', serif;
+  font-weight: 700;
+}
+
+@keyframes nz-zzz-float {
+  0% { transform: translate(0, 0) scale(0.7); opacity: 0; }
+  25% { opacity: 0.95; }
+  100% { transform: translate(14px, -34px) scale(1.15); opacity: 0; }
+}
+:global([data-nezuko-pet] .nz-fx-zzz span) {
+  left: 78px;
+  top: 50px;
+  color: rgba(179, 148, 212, 0.95);
+  text-shadow: 0 1px 4px rgba(9, 12, 10, 0.5);
+  animation: nz-zzz-float 3s ease-out infinite;
+}
+:global([data-nezuko-pet] .nz-fx-zzz span:nth-child(2)) { animation-delay: 1s; font-size: 15px; left: 84px; top: 44px; }
+:global([data-nezuko-pet] .nz-fx-zzz span:nth-child(3)) { animation-delay: 2s; font-size: 18px; left: 90px; top: 38px; }
+:global([data-nezuko-pet] .nz-fx-zzz span:nth-child(1)) { font-size: 13px; }
+
+@keyframes nz-note-rise {
+  0% { transform: translateY(4px) rotate(-8deg); opacity: 0; }
+  30% { opacity: 0.95; }
+  100% { transform: translateY(-30px) rotate(10deg); opacity: 0; }
+}
+:global([data-nezuko-pet] .nz-fx-notes span) {
+  color: #e07a95;
+  text-shadow: 0 1px 4px rgba(9, 12, 10, 0.4);
+  animation: nz-note-rise 1.5s ease-out infinite;
+}
+:global([data-nezuko-pet] .nz-fx-notes span:nth-child(1)) { left: 16px; top: 64px; font-size: 17px; }
+:global([data-nezuko-pet] .nz-fx-notes span:nth-child(2)) { left: 92px; top: 70px; font-size: 15px; animation-delay: 0.75s; }
+
+@keyframes nz-bang-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+:global([data-nezuko-pet] .nz-fx-bang span) {
+  left: 84px;
+  top: 26px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e07a95;
+  color: #fff7f2;
+  font-size: 15px;
+  line-height: 22px;
+  text-align: center;
+  font-family: inherit;
+  box-shadow: 0 2px 8px rgba(224, 122, 149, 0.5);
+  animation: nz-bang-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes nz-heart-burst {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(var(--hx, 0px), -52px) scale(1.2); opacity: 0; }
+}
+:global([data-nezuko-pet] .nz-heart) {
+  color: #e07a95;
+  font-size: 16px;
+  left: 52px;
+  top: 42px;
+  animation: nz-heart-burst 0.9s ease-out forwards;
+  text-shadow: 0 1px 4px rgba(9, 12, 10, 0.35);
+}
+
+/* dragging: keep her quiet and follow the pointer cleanly */
+:global([data-nezuko-pet][data-dragging] .nz-nez),
+:global([data-nezuko-pet][data-dragging] .nz-box),
+:global([data-nezuko-pet][data-dragging] .nz-sprite) {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global([data-nezuko-pet] .nz-nez),
+  :global([data-nezuko-pet] .nz-box),
+  :global([data-nezuko-pet] .nz-sprite),
+  :global([data-nezuko-pet] .nz-flame),
+  :global([data-nezuko-pet] .nz-box-eyes),
+  :global([data-nezuko-pet] .nz-fx span),
+  :global([data-nezuko-pet] .nz-heart) {
+    animation: none !important;
+  }
+}

@@ -282,6 +282,9 @@ export const imageMediaTypeSchema = z.union([
 export const promptContentPartSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), text: z.string() }),
   z.object({ type: z.literal('image'), mediaType: imageMediaTypeSchema, data: z.string(), name: z.string().optional() }),
+  // Generic files: any MIME the browser declares (or octet-stream fallback);
+  // byte ceilings are enforced at admission against the store's fileLimits.
+  z.object({ type: z.literal('file'), mediaType: z.string(), data: z.string(), name: z.string() }),
 ])
 
 /** session.prompt request payload, including optional browser-local request provenance. */

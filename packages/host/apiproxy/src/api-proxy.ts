@@ -11,7 +11,7 @@ import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
-import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { FileAttachmentRef, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import { contentHasImage, createUserMessage, freezeMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageSource } from '@deepseek-ai/dsh-llm'
@@ -139,35 +139,59 @@ export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
 
 /** Decode the browser payload while rejecting non-canonical base64 forms. */
-function decodeBase64(data: string): Uint8Array {
+function decodeBase64(data: string, kind: 'image' | 'file'): Uint8Array {
   const decoded = Buffer.from(data, 'base64')
   if (data.length === 0 || decoded.toString('base64') !== data) {
-    throw new AttachmentError('Image upload is not canonical base64.', 'INVALID_IMAGE_BASE64')
+    throw new AttachmentError(
+      `${kind === 'image' ? 'Image' : 'File'} upload is not canonical base64.`,
+      kind === 'image' ? 'INVALID_IMAGE_BASE64' : 'INVALID_FILE_BASE64',
+    )
   }
   return new Uint8Array(decoded)
 }
 
-/** Validate one prompt as a batch before publishing any durable image object. */
+/**
+ * Render one saved generic file as the model-visible text reference block.
+ * The path is the payload: the agent opens or extracts the file with its own
+ * tools, so the block names the durable location and the intended next step.
+ */
+function fileReferenceText(ref: FileAttachmentRef): string {
+  const mib = ref.bytes / (1024 * 1024)
+  const size = mib >= 0.1 ? `${mib.toFixed(2)} MB` : `${Math.max(1, Math.round(ref.bytes / 1024))} KB`
+  return `[Attached file "${ref.name}" (${ref.mediaType}, ${size}) saved at: ${ref.path} — use your tools to inspect, extract, or process it.]`
+}
+
+/** Validate one prompt as a batch before publishing any durable attachment object. */
 async function durablePromptContent(ctx: Context, content: readonly PromptContentPart[]): Promise<ContentBlock[]> {
   if (content.every(part => part.type === 'text')) {
     return content.map(part => ({ type: 'text', text: part.text }))
   }
   const limits = ctx.attachments.imageLimits
+  const fileLimits = ctx.attachments.fileLimits
   if (content.filter(part => part.type === 'image').length > limits.maxImagesPerMessage) {
     throw new AttachmentError('Prompt exceeds the configured image-count limit.', 'TOO_MANY_IMAGES')
   }
+  if (content.filter(part => part.type === 'file').length > fileLimits.maxFilesPerMessage) {
+    throw new AttachmentError('Prompt exceeds the configured file-count limit.', 'TOO_MANY_FILES')
+  }
   const prepared = content.map(part => part.type === 'text'
     ? part
-    : { part, data: decodeBase64(part.data) })
-  const images = prepared.filter((part): part is Extract<typeof part, { data: Uint8Array }> => 'data' in part)
-  const totalBytes = images.reduce((sum, image) => sum + image.data.byteLength, 0)
-  if (totalBytes > limits.maxMessageImageBytes) {
+    : { part, data: decodeBase64(part.data, part.type) })
+  const withData = prepared.filter((part): part is Extract<typeof part, { data: Uint8Array }> => 'data' in part)
+  const images = withData.filter(item => item.part.type === 'image')
+  const files = withData.filter(item => item.part.type === 'file')
+  const imageBytes = images.reduce((sum, image) => sum + image.data.byteLength, 0)
+  if (imageBytes > limits.maxMessageImageBytes) {
     throw new AttachmentError('Prompt exceeds the configured aggregate image-byte limit.', 'IMAGES_TOO_LARGE')
+  }
+  const fileBytes = files.reduce((sum, file) => sum + file.data.byteLength, 0)
+  if (fileBytes > fileLimits.maxMessageFileBytes) {
+    throw new AttachmentError('Prompt exceeds the configured aggregate file-byte limit.', 'FILES_TOO_LARGE')
   }
   for (const image of images) {
     await ctx.attachments.validateImage({
       data: image.data,
-      mediaType: image.part.mediaType,
+      mediaType: image.part.mediaType as ImageMediaType,
       ...image.part.name === undefined ? {} : { name: image.part.name },
     })
   }
@@ -175,6 +199,15 @@ async function durablePromptContent(ctx: Context, content: readonly PromptConten
   for (const item of prepared) {
     if (!('data' in item)) {
       blocks.push({ type: 'text', text: item.text })
+      continue
+    }
+    if (item.part.type === 'file') {
+      const ref = await ctx.attachments.saveFile({
+        data: item.data,
+        mediaType: item.part.mediaType,
+        name: item.part.name,
+      })
+      blocks.push({ type: 'text', text: fileReferenceText(ref) })
       continue
     }
     const attachment = await ctx.attachments.saveImage({

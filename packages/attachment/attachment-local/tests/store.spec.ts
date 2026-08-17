@@ -6,8 +6,8 @@ import { dirname, join, parse, resolve } from 'node:path'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import sharp from 'sharp'
-import type { ImageAttachmentLimits } from '@deepseek-ai/dsh-attachment'
-import { readImageFile, saveImageFile } from '../src/store.ts'
+import type { FileAttachmentLimits, ImageAttachmentLimits } from '@deepseek-ai/dsh-attachment'
+import { readImageFile, saveFileData, saveImageFile } from '../src/store.ts'
 
 const fsControl = vi.hoisted(() => ({
   readSignals: [] as AbortSignal[],
@@ -44,6 +44,12 @@ const LIMITS: ImageAttachmentLimits = {
   maxMessageImageBytes: 2048,
   maxImagePixels: 16,
   mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+}
+
+const FILE_LIMITS: FileAttachmentLimits = {
+  maxFileBytes: 32,
+  maxFilesPerMessage: 8,
+  maxMessageFileBytes: 64,
 }
 
 const roots: string[] = []
@@ -106,6 +112,35 @@ describe('local attachment store', () => {
     const ref = await saveImageFile(storageRoot, { data: PNG, mediaType: 'image/png' }, LIMITS)
 
     await expect(readImageFile(storageRoot, ref)).resolves.toEqual({ ref, data: PNG })
+  })
+
+  it('persists arbitrary file bytes under a safe agent-readable name', async () => {
+    const storageRoot = await root()
+    const zip = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3])
+
+    const ref = await saveFileData(storageRoot, {
+      data: zip, mediaType: 'application/zip', name: '/private/tmp/evil dir/数据 报告.zip',
+    }, FILE_LIMITS)
+
+    // Path segments stripped, unsafe characters mapped, extension kept.
+    expect(ref.name).toBe('数据_报告.zip')
+    expect(ref.mediaType).toBe('application/zip')
+    expect(ref.bytes).toBe(zip.byteLength)
+    expect(String(ref.attachmentId).startsWith('file:')).toBe(true)
+    expect(ref.path).toBe(join(storageRoot, 'files', `${String(ref.attachmentId).slice(5)}-${ref.name}`))
+    expect(new Uint8Array(await readFile(ref.path))).toEqual(zip)
+    if (process.platform !== 'win32') {
+      expect((await stat(ref.path)).mode & 0o777).toBe(0o600)
+    }
+    // Empty and oversized payloads reject with stable codes.
+    await expect(saveFileData(storageRoot, { data: new Uint8Array(0), mediaType: '', name: 'x' }, FILE_LIMITS))
+      .rejects.toMatchObject({ code: 'INVALID_FILE' })
+    await expect(saveFileData(storageRoot, { data: new Uint8Array(FILE_LIMITS.maxFileBytes + 1), mediaType: '', name: 'x' }, FILE_LIMITS))
+      .rejects.toMatchObject({ code: 'FILE_TOO_LARGE' })
+    // An empty declared type falls back to octet-stream.
+    const fallback = await saveFileData(storageRoot, { data: zip, mediaType: '', name: '.hidden' }, FILE_LIMITS)
+    expect(fallback.mediaType).toBe('application/octet-stream')
+    expect(fallback.name).toBe('hidden')
   })
 
   it('publishes one private content-addressed object and deduplicates equal bytes', async () => {

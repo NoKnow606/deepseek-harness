@@ -1,0 +1,76 @@
+/* Kimetsu appearance row: ichimatsu-checker cubes. Colors are theme-owned
+   artwork (the checker pattern IS the theme's signature), not product
+   palette tokens — the same exemption as a logo. State rings ride the
+   product alias layer so the selected cube follows the ACTIVE theme. */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Uroko (鱗) scale strip crowning the row — traditional pattern, theme-owned artwork. */
+.crest {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background-image:
+    radial-gradient(circle at 50% 0%, transparent 58%, rgba(224, 122, 149, 0.35) 60% 66%, transparent 68%),
+    radial-gradient(circle at 50% 100%, transparent 58%, rgba(224, 122, 149, 0.35) 60% 66%, transparent 68%);
+  background-size: 14px 14px;
+  opacity: 0.7;
+}
+
+.title {
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-markdown-small);
+}
+
+.cubeRow {
+  display: flex;
+  gap: 8px;
+}
+
+.cube {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-markdown-small);
+  cursor: pointer;
+  transition: border-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    background-color var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.cube:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.cube.selected {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary);
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l3);
+}
+
+/* Ichimatsu checker (Tanjiro haori): deep green / lacquer black. */
+.swatchDark {
+  background: conic-gradient(rgb(26, 77, 58) 25%, rgb(13, 18, 15) 0 50%, rgb(26, 77, 58) 0 75%, rgb(13, 18, 15) 0);
+  background-size: 14px 14px;
+}
+
+/* Washi checker: bamboo green / paper white. */
+.swatchLight {
+  background: conic-gradient(rgb(69, 122, 94) 25%, rgb(250, 248, 241) 0 50%, rgb(69, 122, 94) 0 75%, rgb(250, 248, 241) 0);
+  background-size: 14px 14px;
+}

@@ -338,6 +338,8 @@ describe('argument and service preconditions', () => {
         maxImagePixels: 100,
         mediaTypes: Object.freeze(['image/jpeg'] as const),
       })
+      readonly fileLimits = { maxFileBytes: 32 * 1024 * 1024, maxFilesPerMessage: 8, maxMessageFileBytes: 64 * 1024 * 1024 }
+      saveFile(): Promise<never> { return Promise.reject(new Error('unused')) }
 
       validateImage(_input: SaveImageAttachment): Promise<void> {
         throw new Error('unreachable: admission refuses before validation')
@@ -417,6 +419,8 @@ describe('image admission failures', () => {
         maxImagePixels: 100,
         mediaTypes: Object.freeze(['image/png'] as const),
       })
+      readonly fileLimits = { maxFileBytes: 32 * 1024 * 1024, maxFilesPerMessage: 8, maxMessageFileBytes: 64 * 1024 * 1024 }
+      saveFile(): Promise<never> { return Promise.reject(new Error('unused')) }
 
       validateImage(_input: SaveImageAttachment): Promise<void> {
         return Promise.resolve()

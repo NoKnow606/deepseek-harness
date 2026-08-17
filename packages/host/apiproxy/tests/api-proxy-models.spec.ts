@@ -148,6 +148,11 @@ describe('Web session model selection', () => {
         maxImagePixels: 4,
         mediaTypes: ['image/png'],
       },
+      fileLimits: {
+        maxFileBytes: 32 * 1024 * 1024,
+        maxFilesPerMessage: 8,
+        maxMessageFileBytes: 64 * 1024 * 1024,
+      },
       validateImage,
       saveImage,
     } as never)
@@ -193,6 +198,79 @@ describe('Web session model selection', () => {
       error: { code: 'attachment-error', details: { reason: 'TOO_MANY_IMAGES' } },
     })
     expect(saveImage).toHaveBeenCalledTimes(2)
+    await ctx.fiber.dispose()
+  })
+
+  it('promotes generic file parts to a stored path and a text reference block', async () => {
+    const { ctx, agent, sessionId } = await harness()
+    const saveFile = vi.fn((input: { data: Uint8Array; mediaType: string; name: string }) => Promise.resolve({
+      attachmentId: `file:${String(input.data[0])}`,
+      mediaType: input.mediaType,
+      bytes: input.data.byteLength,
+      name: input.name,
+      path: `/store/files/${input.name}`,
+    }))
+    ctx.provide('attachments', {
+      imageLimits: {
+        maxImageBytes: 4,
+        maxImagesPerMessage: 2,
+        maxMessageImageBytes: 4,
+        maxImagePixels: 4,
+        mediaTypes: ['image/png'],
+      },
+      fileLimits: {
+        maxFileBytes: 4,
+        maxFilesPerMessage: 2,
+        maxMessageFileBytes: 6,
+      },
+      saveFile,
+    } as never)
+    const followup = vi.fn()
+    Object.assign(agent, { followup })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+    })
+
+    const result = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [
+        { type: 'file' as const, mediaType: 'application/zip', data: 'AQI=', name: 'bundle.zip' },
+        { type: 'text' as const, text: 'look inside' },
+      ],
+    }))
+    expect(result.result.ok).toBe(true)
+    expect(saveFile.mock.calls.map(([input]) => [[...input.data], input.name])).toEqual([[[1, 2], 'bundle.zip']])
+    const blocks = (followup.mock.calls[0]?.[0] as UserMessage).content
+    expect(blocks[0]).toEqual({
+      type: 'text',
+      text: '[Attached file "bundle.zip" (application/zip, 1 KB) saved at: /store/files/bundle.zip — use your tools to inspect, extract, or process it.]',
+    })
+    expect(blocks[1]).toEqual({ type: 'text', text: 'look inside' })
+
+    // Over-count and over-bytes batches refuse before any save.
+    const deniedCount = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: Array.from({ length: 3 }, () => ({
+        type: 'file' as const, mediaType: 'text/plain', data: 'AQ==', name: 'f.txt',
+      })),
+    }))
+    expect(deniedCount.result).toMatchObject({
+      ok: false,
+      error: { code: 'attachment-error', details: { reason: 'TOO_MANY_FILES' } },
+    })
+    const deniedBytes = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [{ type: 'file' as const, mediaType: 'text/plain', data: 'AQIDBAUGBw==', name: 'f.txt' }],
+    }))
+    expect(deniedBytes.result).toMatchObject({
+      ok: false,
+      error: { code: 'attachment-error', details: { reason: 'FILES_TOO_LARGE' } },
+    })
+    expect(saveFile).toHaveBeenCalledTimes(1)
     await ctx.fiber.dispose()
   })
 

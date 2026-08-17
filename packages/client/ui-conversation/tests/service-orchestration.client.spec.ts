@@ -10,7 +10,7 @@ import { makeTranslate, SlotTestRuntime } from '@deepseek-ai/dsh-client-test-run
 import type { QueuedMessage, SessionFace } from '@deepseek-ai/dsh-client-runtime/client'
 import { ComposerBlockRegistry } from '../src/client/input/blocks.ts'
 import { InputHub } from '../src/client/input/hub.ts'
-import { ConversationController, UnsupportedImageMediaTypeError } from '../src/client/service.ts'
+import { ConversationController } from '../src/client/service.ts'
 import { zh } from '../src/client/locales.ts'
 
 async function bench(readAttachment?: SessionFace['readAttachment']) {
@@ -103,15 +103,33 @@ describe('ConversationController', () => {
     await b.runtime.dispose()
   })
 
-  it('validates every MIME type before allocating previews', async () => {
+  it('accepts every file type, allocating previews only for raster images', async () => {
     const b = await bench()
     const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview')
-    expect(() => b.root.createDraftImages([
+    const attachments = b.root.createDraftImages([
       new File([Uint8Array.of(1)], 'valid.png', { type: 'image/png' }),
-      new File([Uint8Array.of(2)], 'invalid.svg', { type: 'image/svg+xml' }),
-    ])).toThrow(UnsupportedImageMediaTypeError)
-    expect(created).not.toHaveBeenCalled()
+      new File([Uint8Array.of(2)], 'vector.svg', { type: 'image/svg+xml' }),
+      new File([Uint8Array.of(3)], 'bundle.zip', { type: 'application/zip' }),
+    ])
+    expect(attachments.map(attachment => attachment.kind)).toEqual(['image', 'file', 'file'])
+    expect(attachments.map(attachment => attachment.previewUrl)).toEqual(['blob:preview', '', ''])
+    expect(created).toHaveBeenCalledTimes(1)
     created.mockRestore()
+    await b.runtime.dispose()
+  })
+
+  it('serializes file drafts as stored-file prompt parts', async () => {
+    const b = await bench()
+    const attachments = b.root.createDraftImages([
+      new File([Uint8Array.of(80, 75, 3, 4)], 'bundle.zip', { type: 'application/zip' }),
+    ])
+    expect(attachments[0]?.kind).toBe('file')
+    const session = b.runtime.sessions.binding('s1')!.session
+    await b.scoped.sendSession(session, 'look inside', attachments.map(attachment => attachment.id), 'queue')
+    expect(b.prompt).toHaveBeenCalledWith([
+      { type: 'file', mediaType: 'application/zip', data: 'UEsDBA==', name: 'bundle.zip' },
+      { type: 'text', text: 'look inside' },
+    ], 'queue')
     await b.runtime.dispose()
   })
 

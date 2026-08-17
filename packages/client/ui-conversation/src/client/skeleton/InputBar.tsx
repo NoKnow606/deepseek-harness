@@ -41,6 +41,14 @@ interface ComposerRailItem extends AttachmentRailItem {
   attachment: ComposerAttachment
 }
 
+/**
+ * Client-side file intake ceilings (a UX pre-check mirroring the attachment
+ * store's defaults; the host's fileLimits remain the authoritative gate).
+ */
+const FILE_MAX_BYTES = 32 * 1024 * 1024
+const FILE_MAX_PER_MESSAGE = 8
+const FILE_MAX_TOTAL_BYTES = 64 * 1024 * 1024
+
 export type InputBarProps = ComposerBarProps
 
 export function InputBar({
@@ -419,28 +427,43 @@ export function InputBar({
   // Intake pre-check (DeepSeek Chat semantics): an addition that would break
   // a projected limit is refused as a whole batch, announced immediately, and
   // never enters the rail — no more submit-time failure rolling the rail
-  // back. The host enforces the same limits at submit for callers that bypass
-  // this composer.
+  // back. Every file type is accepted: raster images keep the projected
+  // imageLimits, everything else is bounded by the file constants below (the
+  // host enforces its own authoritative copy for callers that bypass this
+  // composer).
   const intakeImages = useCallback((files: readonly File[]): void => {
     if (addImages === undefined || files.length === 0) return
     const rejected = ((): string | null => {
-      if (imageLimits !== undefined) {
-        // Format precedes limits (DeepSeek Chat's filter order): a batch with
-        // a non-image must announce the format problem, not a count or size
-        // it could never pass anyway — addImages rejects it authoritatively.
-        if (files.some(file => !(imageLimits.mediaTypes as readonly string[]).includes(file.type))) {
-          return addImages(files)
-        }
-        if (attachments.length + files.length > imageLimits.maxImagesPerMessage) {
+      const images = files.filter(file => (imageLimits?.mediaTypes as readonly string[] | undefined)?.includes(file.type) ?? false)
+      const rest = files.filter(file => !images.includes(file))
+      if (imageLimits !== undefined && images.length > 0) {
+        const heldImages = attachments.filter(attachment => attachment.kind === 'image').length
+        if (heldImages + images.length > imageLimits.maxImagesPerMessage) {
           return t('image.tooMany', { count: imageLimits.maxImagesPerMessage })
         }
-        if (files.some(file => file.size > imageLimits.maxImageBytes)) {
+        if (images.some(file => file.size > imageLimits.maxImageBytes)) {
           return t('image.fileTooLarge', { size: imageSizeText(imageLimits.maxImageBytes) })
         }
-        const total = attachments.reduce((sum, attachment) => sum + attachment.file.size, 0)
-          + files.reduce((sum, file) => sum + file.size, 0)
+        const total = attachments.filter(attachment => attachment.kind === 'image')
+          .reduce((sum, attachment) => sum + attachment.file.size, 0)
+          + images.reduce((sum, file) => sum + file.size, 0)
         if (total > imageLimits.maxMessageImageBytes) {
           return t('image.totalTooLarge', { size: imageSizeText(imageLimits.maxMessageImageBytes) })
+        }
+      }
+      if (rest.length > 0) {
+        const heldFiles = attachments.filter(attachment => attachment.kind === 'file').length
+        if (heldFiles + rest.length > FILE_MAX_PER_MESSAGE) {
+          return t('file.tooMany', { count: FILE_MAX_PER_MESSAGE })
+        }
+        if (rest.some(file => file.size > FILE_MAX_BYTES)) {
+          return t('file.fileTooLarge', { size: imageSizeText(FILE_MAX_BYTES) })
+        }
+        const total = attachments.filter(attachment => attachment.kind === 'file')
+          .reduce((sum, attachment) => sum + attachment.file.size, 0)
+          + rest.reduce((sum, file) => sum + file.size, 0)
+        if (total > FILE_MAX_TOTAL_BYTES) {
+          return t('file.totalTooLarge', { size: imageSizeText(FILE_MAX_TOTAL_BYTES) })
         }
       }
       return addImages(files)
@@ -512,8 +535,11 @@ export function InputBar({
   const railItems = useMemo<ComposerRailItem[]>(() => attachments.map(attachment => ({
     id: attachment.id,
     previewUrl: attachment.previewUrl,
-    alt: attachment.file.name || t('image.pending'),
-    removeLabel: t('image.remove', { name: attachment.file.name }),
+    alt: attachment.file.name || t(attachment.kind === 'image' ? 'image.pending' : 'file.pending'),
+    removeLabel: t(attachment.kind === 'image' ? 'image.remove' : 'file.remove', { name: attachment.file.name }),
+    ...(attachment.kind === 'file'
+      ? { fileName: attachment.file.name || t('file.pending'), fileSize: imageSizeText(attachment.file.size) }
+      : {}),
     attachment,
   })), [attachments, t])
 
@@ -681,7 +707,7 @@ export function InputBar({
             <AttachmentRail
               items={railItems}
               labels={attachmentRailLabels(t)}
-              onOpen={(item) => { setPreview(item.attachment) }}
+              onOpen={(item) => { if (item.attachment.kind === 'image') setPreview(item.attachment) }}
               onRemove={(item) => { removeImage?.(item.attachment.id) }}
             />
           </div>

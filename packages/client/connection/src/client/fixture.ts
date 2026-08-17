@@ -2414,6 +2414,21 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         const userText = content.map(b => (b.type === 'text' ? b.text : '')).join('')
         const durable: ContentBlock[] = content.map((block) => {
           if (block.type === 'text') return block
+          // Generic files mirror the host admission: a text reference block
+          // naming the (fixture-virtual) durable path.
+          if (block.type === 'file') {
+            const bytes = Math.max(
+              1,
+              Math.floor(block.data.length * 3 / 4)
+              - (block.data.endsWith('==') ? 2 : block.data.endsWith('=') ? 1 : 0),
+            )
+            const mib = bytes / (1024 * 1024)
+            const size = mib >= 0.1 ? `${mib.toFixed(2)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
+            return {
+              type: 'text',
+              text: `[Attached file "${block.name}" (${block.mediaType}, ${size}) saved at: /fixture/attachments/${block.name} — use your tools to inspect, extract, or process it.]`,
+            }
+          }
           const attachment: ImageAttachmentRef = {
             attachmentId: `fixture:${randomUuid()}` as AttachmentIdType,
             mediaType: block.mediaType,
